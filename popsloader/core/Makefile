@@ -21,12 +21,12 @@ OBJS += nid_660_to_620.o \
 		nid_393_to_660.o \
 		nid_impose_400_to_620.o \
 		nid_impose_400_to_635.o \
-		nid_impose_400_to_660.o
+		nid_impose_400_to_660.o 
 
 #PRO_HOME = d:/PSP/635PRO
 
-CFLAGS = -Os -G0 -Wall -I../common -I$(PRO_HOME)/include -I$(PRO_HOME)/Common
-
+CFLAGS = -O2 -G0 -Wall -I../common -I$(PRO_HOME)/include -I$(PRO_HOME)/Common
+DEBUG=0
 ifeq ($(DEBUG), 1)
 CFLAGS += -DDEBUG=1
 OBJS += $(PRO_HOME)/Common/utils.o $(PRO_HOME)/Common/printk.o

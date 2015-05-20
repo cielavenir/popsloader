@@ -4,14 +4,15 @@ all:
 TARGET = popcorn
 
 OBJS = main.o icon.o popcorn_patch_offset.o imports.o $(PRO_HOME)/Stargate/analog_patch.o
-OBJS += $(PRO_HOME)/Common/utils.o $(PRO_HOME)/Common/strsafe.o $(PRO_HOME)/Common/libs.o
+OBJS += $(PRO_HOME)/Common/strsafe.o ../common/libs.o
 
-CFLAGS = -Os -G0 -Wall -I. -I$(PRO_HOME)/Common -I$(PRO_HOME)/include
-
+CFLAGS = -O3 -G0 -Wall -I. -I$(PRO_HOME)/Common -I$(PRO_HOME)/include
+DEBUG=0
 ifeq ($(DEBUG), 1)
 CFLAGS += -DDEBUG=1
-OBJS += $(PRO_HOME)/Common/printk.o
+OBJS += $(PRO_HOME)/Common/utils.o $(PRO_HOME)/Common/printk.o
 else
+OBJS += ../common/utils.o ../common/vsnprintf.o
 endif
 
 ifeq ($(CONFIG_302), 1)
@@ -152,6 +153,11 @@ endif
 ifeq ($(CONFIG_660), 1)
 CFLAGS += -DCONFIG_660=1
 PSP_FW_VERSION = 660
+endif
+
+ifeq ($(CONFIG_661), 1)
+CFLAGS += -DCONFIG_661=1
+PSP_FW_VERSION = 661
 endif
 
 LDFLAGS = -mno-crt0 -nostartfiles -L. -L$(PRO_HOME)/libs

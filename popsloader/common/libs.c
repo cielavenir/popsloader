@@ -82,6 +82,7 @@ unsigned int find_import_bynid(SceModule *pMod, char *library, unsigned int nid)
 	return 0;
 }
 
+extern u32 me_fw;
 /**
  * Remember you have to export the hooker function if using syscall hook
  */
@@ -111,7 +112,10 @@ int hook_import_bynid(SceModule *pMod, char *library, unsigned int nid, void *fu
 					if(syscall) {
 						u32 syscall_num;
 
-						syscall_num = sctrlKernelQuerySystemCall(func);
+						int sctrlKernelQuerySystemCall_patch(void *addr);
+						syscall_num = me_fw?
+							sctrlKernelQuerySystemCall_patch(func):
+							sctrlKernelQuerySystemCall(func);
 
 						if(syscall_num == (u32)-1) {
 							printk("%s: cannot find syscall in %s_%08X\n", __func__, library, nid);

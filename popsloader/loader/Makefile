@@ -1,12 +1,15 @@
 TARGET = popsloader
-OBJS = main.o ui.o ../common/utils.o ../common/vsnprintf.o ../common/conf.o
+OBJS = main.o ui.o ../common/conf.o
 
 #PRO_HOME = d:/PSP/635PRO
 
-CFLAGS = -Os -G0 -Wall -I../common -I$(PRO_HOME)/include -I$(PRO_HOME)/Common
-
+CFLAGS = -O2 -G0 -Wall -I../common -I$(PRO_HOME)/include -I$(PRO_HOME)/Common
+DEBUG=0
 ifeq ($(DEBUG), 1)
 CFLAGS += -DDEBUG=1
+OBJS += $(PRO_HOME)/Common/utils.o $(PRO_HOME)/Common/printk.o
+else
+OBJS += ../common/utils.o ../common/vsnprintf.o
 endif
 
 LDFLAGS = -mno-crt0 -nostartfiles -L. -L $(PRO_HOME)/libs

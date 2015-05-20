@@ -119,14 +119,18 @@ static void set_color(u32 color)
 	pspDebugScreenSetTextColor(color);
 }
 
+extern u32 me_fw;
+extern char __disc_id[16];
 void menu_draw(struct Menu *menu)
 {
 	int i;
 
-	set_screen_xy((MAX_SCREEN_X - strlen(menu->banner)) / 2, 2);
+	set_screen_xy((MAX_SCREEN_X - strlen(menu->banner)) / 2, 1);
 	printf("%s\n", menu->banner);
-	set_screen_xy((MAX_SCREEN_X - strlen(POPSLOADER_VERSION_STR)) / 2, 3);
-	printf("%s\n", POPSLOADER_VERSION_STR);
+	set_screen_xy((MAX_SCREEN_X - strlen(POPSLOADER_VERSION_STR) - 8 - (me_fw?2:3)) / 2, 2);
+	printf("%s (%s Mode)\n", POPSLOADER_VERSION_STR, me_fw?"ME":"PRO");
+	set_screen_xy((MAX_SCREEN_X - strlen(__disc_id) - 9) / 2, 3);
+	printf("Disc ID: %s\n", __disc_id);
 
 	for(i=0; i<menu->size; ++i) {
 		set_screen_xy((MAX_SCREEN_X - strlen(menu->items[i].name)) / 2, 5 + i);

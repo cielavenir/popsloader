@@ -31,6 +31,15 @@
 #include "libs.h"
 #include "popcorn_patch_offset.h"
 
+#include "../common/me_fw.h"
+
+#ifdef DEBUG
+int (*myprintk)(char *fmt, ...);
+int printk_void(char *fmt, ...){}
+#else
+#define myprintk(...)
+#endif
+
 struct Hooks {
 	u32 nid;
 	void *fp;
@@ -86,13 +95,13 @@ int myIoRead(int fd, u8 *buf, int size)
 	if(g_keys_bin_found || g_is_custom_ps1) {
 		if(fd == RIF_MAGIC_FD) {
 			size = 152;
-			printk("%s: fake rif content %d\n", __func__, size);
+			myprintk("%s: fake rif content %d\n", __func__, size);
 			memset(buf, 0, size);
 			strcpy((char*)(buf+0x10), PGD_ID);
 			ret = size;
 			goto exit;
 		} else if (fd == ACT_DAT_FD) {
-			printk("%s: fake act.dat content %d\n", __func__, size);
+			myprintk("%s: fake act.dat content %d\n", __func__, size);
 			memset(buf, 0, size);
 			ret = size;
 			goto exit;
@@ -113,7 +122,7 @@ int myIoRead(int fd, u8 *buf, int size)
 		if(0 == memcmp(buf, &magic, sizeof(magic))) {
 			magic = 0x5053507E; // ~PSP
 			memcpy(buf, &magic, sizeof(magic));
-			printk("%s: patch ~ELF -> ~PSP\n", __func__);
+			myprintk("%s: patch ~ELF -> ~PSP\n", __func__);
 		}
 
 		ret = size;
@@ -124,7 +133,7 @@ int myIoRead(int fd, u8 *buf, int size)
 		u32 png_signature = 0x474E5089;
 
 		if(g_icon0_status == ICON0_MISSING || ((g_icon0_status == ICON0_CORRUPTED) && 0 == memcmp(buf, &png_signature, 4))) {
-			printk("%s: fakes a PNG for icon0\n", __func__);
+			myprintk("%s: fakes a PNG for icon0\n", __func__);
 			memcpy(buf, g_icon_png, size);
 
 			ret = size;
@@ -138,12 +147,12 @@ int myIoRead(int fd, u8 *buf, int size)
 			buf[0x41E] == 0x41 &&
 			buf[0x41A] == buf[0x41F]) {
 		buf[0x41B] = 0x55;
-		printk("%s: unknown patch loc_6c\n", __func__);
+		myprintk("%s: unknown patch loc_6c\n", __func__);
 	}
 
 exit:
 	pspSdkSetK1(k1);
-	printk("%s: fd=0x%08X pos=0x%08X size=%d -> 0x%08X\n", __func__, (uint)fd, (uint)pos, (int)size, ret);
+	myprintk("%s: fd=0x%08X pos=0x%08X size=%d -> 0x%08X\n", __func__, (uint)fd, (uint)pos, (int)size, ret);
 
 	return ret;
 }
@@ -157,7 +166,7 @@ int myIoReadAsync(int fd, u8 *buf, int size)
 	k1 = pspSdkSetK1(0);
 	pos = sceIoLseek32(fd, 0, SEEK_CUR);
 	ret = sceIoReadAsync(fd, buf, size);
-	printk("%s: 0x%08X 0x%08X 0x%08X -> 0x%08X\n", __func__, (uint)fd, (uint)pos, size, ret);
+	myprintk("%s: 0x%08X 0x%08X 0x%08X -> 0x%08X\n", __func__, (uint)fd, (uint)pos, size, ret);
 	pspSdkSetK1(k1);
 
 	return ret;
@@ -172,10 +181,10 @@ SceOff myIoLseek(SceUID fd, SceOff offset, int whence)
 
 	if(g_keys_bin_found || g_is_custom_ps1) {
 		if (fd == RIF_MAGIC_FD) {
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 			ret = 0;
 		} else if (fd == ACT_DAT_FD) {
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 			ret = 0;
 		} else {
 			ret = sceIoLseek(fd, offset, whence);
@@ -185,7 +194,7 @@ SceOff myIoLseek(SceUID fd, SceOff offset, int whence)
 	}
 
 	pspSdkSetK1(k1);
-	printk("%s: 0x%08X 0x%08X 0x%08X -> 0x%08X\n", __func__, (uint)fd, (uint)offset, (uint)whence, (int)ret);
+	myprintk("%s: 0x%08X 0x%08X 0x%08X -> 0x%08X\n", __func__, (uint)fd, (uint)offset, (uint)whence, (int)ret);
 
 	return ret;
 }
@@ -199,10 +208,10 @@ int myIoClose(SceUID fd)
 
 	if(g_keys_bin_found || g_is_custom_ps1) {
 		if (fd == RIF_MAGIC_FD) {
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 			ret = 0;
 		} else if (fd == ACT_DAT_FD) {
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 			ret = 0;
 		} else {
 			ret = sceIoClose(fd);
@@ -216,7 +225,7 @@ int myIoClose(SceUID fd)
 	}
 
 	pspSdkSetK1(k1);
-	printk("%s: 0x%08X -> 0x%08X\n", __func__, fd, ret);
+	myprintk("%s: 0x%08X -> 0x%08X\n", __func__, fd, ret);
 
 	return ret;
 }
@@ -255,7 +264,7 @@ static int is_eboot_pbp_path(const char *path)
 
 static int check_file_is_decrypted(const char *filename)
 {
-	SceUID fd = -1;
+	SceUID fd;
 	u32 k1;
 	int result = 0, ret;
 	u8 p[16 + 64], *buf;
@@ -263,11 +272,11 @@ static int check_file_is_decrypted(const char *filename)
 
 	buf = (u8*)((((u32)p) & ~(64-1)) + 64);
 
+	k1 = pspSdkSetK1(0);
 	if(!g_is_custom_ps1 && is_eboot_pbp_path(filename)) {
-		goto exit;
+		return 0;
 	}
 
-	k1 = pspSdkSetK1(0);
 	fd = sceIoOpen(filename, PSP_O_RDONLY, 0777);
 
 	if(fd < 0) {
@@ -316,7 +325,7 @@ static int sceIoOpenPlain(const char *file, int flag, int mode)
 	int ret;
 
 	if(flag == 0x40000001 && check_file_is_decrypted(file)) {
-		printk("%s: removed PGD open flag\n", __func__);
+		myprintk("%s: removed PGD open flag\n", __func__);
 		ret = sceIoOpen(file, flag & ~0x40000000, mode);
 
 		if(ret >= 0 && is_document_path(file)) {
@@ -335,10 +344,10 @@ int myIoOpen(const char *file, int flag, int mode)
 
 	if(g_keys_bin_found || g_is_custom_ps1) {
 		if(strstr(file, PGD_ID)) {
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 			ret = RIF_MAGIC_FD;
 		} else if (0 == strcmp(file, ACT_DAT)) {
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 			ret = ACT_DAT_FD;
 		} else {
 			ret = sceIoOpenPlain(file, flag, mode);
@@ -347,7 +356,7 @@ int myIoOpen(const char *file, int flag, int mode)
 		ret = sceIoOpenPlain(file, flag, mode);
 	}
 
-	printk("%s: %s 0x%08X -> 0x%08X\n", __func__, file, flag, ret);
+	myprintk("%s: %s 0x%08X -> 0x%08X\n", __func__, file, flag, ret);
 
 	return ret;
 }
@@ -357,18 +366,18 @@ int myIoIoctl(SceUID fd, unsigned int cmd, void * indata, int inlen, void * outd
 	int ret;
 
 	if(cmd == 0x04100001) {
-		printk("%s: setting PGD key\n", __func__);
+		myprintk("%s: setting PGD key\n", __func__);
 		hexdump(indata, inlen);
 	}
 
 	if(cmd == 0x04100002) {
-		printk("%s: setting PGD offset: 0x%08X\n", __func__, *(uint*)indata);
+		myprintk("%s: setting PGD offset: 0x%08X\n", __func__, *(uint*)indata);
 	}
 
 	if (g_is_custom_ps1 || (g_plain_doc_fd >= 0 && g_plain_doc_fd == fd)) {
 		if (cmd == 0x04100001) {
 			ret = 0;
-			printk("%s: [FAKE] 0x%08X 0x%08X -> 0x%08X\n", __func__, fd, cmd, ret);
+			myprintk("%s: [FAKE] 0x%08X 0x%08X -> 0x%08X\n", __func__, fd, cmd, ret);
 			goto exit;
 		}
 
@@ -376,11 +385,11 @@ int myIoIoctl(SceUID fd, unsigned int cmd, void * indata, int inlen, void * outd
 			ret = sceIoLseek32(fd, *(u32*)indata, PSP_SEEK_SET);
 
 			if(ret < 0) {
-				printk("%s: sceIoLseek32 -> 0x%08X\n", __func__, ret);
+				myprintk("%s: sceIoLseek32 -> 0x%08X\n", __func__, ret);
 			}
 
 			ret = 0;
-			printk("%s: [FAKE] 0x%08X 0x%08X -> 0x%08X\n", __func__, fd, cmd, ret);
+			myprintk("%s: [FAKE] 0x%08X 0x%08X -> 0x%08X\n", __func__, fd, cmd, ret);
 			goto exit;
 		}
 	}
@@ -388,7 +397,7 @@ int myIoIoctl(SceUID fd, unsigned int cmd, void * indata, int inlen, void * outd
 	ret = sceIoIoctl(fd, cmd, indata, inlen, outdata, outlen);
 
 exit:
-	printk("%s: 0x%08X -> 0x%08X\n", __func__, fd, ret);
+	myprintk("%s: 0x%08X -> 0x%08X\n", __func__, fd, ret);
 
 	return ret;
 }
@@ -403,13 +412,13 @@ int myIoGetstat(const char *path, SceIoStat *stat)
 			stat->st_attr = 0x20;
 			stat->st_size = 152;
 			ret = 0;
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 		} else if (0 == strcmp(path, ACT_DAT)) {
 			stat->st_mode = 0x21FF;
 			stat->st_attr = 0x20;
 			stat->st_size = 4152;
 			ret = 0;
-			printk("%s: [FAKE]\n", __func__);
+			myprintk("%s: [FAKE]\n", __func__);
 		} else {
 			ret = sceIoGetstat(path, stat);
 		}
@@ -417,7 +426,7 @@ int myIoGetstat(const char *path, SceIoStat *stat)
 		ret = sceIoGetstat(path, stat);
 	}
 
-	printk("%s: %s -> 0x%08X\n", __func__, path, ret);
+	myprintk("%s: %s -> 0x%08X\n", __func__, path, ret);
 
 	return ret;
 }
@@ -433,7 +442,7 @@ static int get_rif_path(char *name, char *path)
 	}
 
 	ret = (*_get_rif_path)(name, path);
-	printk("%s: %s %s -> 0x%08X\n", __func__, name, path, ret);
+	myprintk("%s: %s %s -> 0x%08X\n", __func__, name, path, ret);
 
 	return ret;
 }
@@ -487,7 +496,7 @@ static int load_key(const char *keypath, u8 *key, int size)
 	keys = sceIoOpen(keypath, PSP_O_RDONLY, 0777);
 
 	if (keys < 0) {
-		printk("%s: sceIoOpen %s -> 0x%08X\n", __func__, keypath, keys);
+		myprintk("%s: sceIoOpen %s -> 0x%08X\n", __func__, keypath, keys);
 
 		return -1;
 	}
@@ -515,21 +524,21 @@ static int _sceNpDrmGetVersionKey(u8 * key, u8 * act, u8 * rif, u32 flags)
 	result = (*sceNpDrmGetVersionKey)(key, act, rif, flags);
 
 	if (g_is_custom_ps1) {
-		printk("%s: -> 0x%08X\n", __func__, result);
+		myprintk("%s: -> 0x%08X\n", __func__, result);
 		result = 0;
 
 		if (g_keys_bin_found) {
 			memcpy(key, g_keys, sizeof(g_keys));
 		}
 		
-		printk("%s:[FAKE] -> 0x%08X\n", __func__, result);
+		myprintk("%s:[FAKE] -> 0x%08X\n", __func__, result);
 	} else {
 		get_keypath(keypath, sizeof(keypath));
 
 		if (result == 0) {
 			memcpy(g_keys, key, sizeof(g_keys));
 			ret = save_key(keypath, g_keys, sizeof(g_keys));
-			printk("%s: save_key -> %d\n", __func__, ret);
+			myprintk("%s: save_key -> %d\n", __func__, ret);
 		} else {
 			if (g_keys_bin_found) {
 				memcpy(key, g_keys, sizeof(g_keys));
@@ -548,12 +557,12 @@ static int _scePspNpDrm_driver_9A34AC9F(u8 *rif)
 	int result;
 
 	result = (*scePspNpDrm_driver_9A34AC9F)(rif);
-	printk("%s: 0x%08X -> 0x%08X\n", __func__, (uint)rif, result);
+	myprintk("%s: 0x%08X -> 0x%08X\n", __func__, (uint)rif, result);
 
 	if (result != 0) {
 		if (g_keys_bin_found || g_is_custom_ps1) {
 			result = 0;
-			printk("%s:[FAKE] -> 0x%08X\n", __func__, result);
+			myprintk("%s:[FAKE] -> 0x%08X\n", __func__, result);
 		}
 	}
 
@@ -772,6 +781,7 @@ static void reboot_vsh_with_error(u32 error)
 	sctrlKernelExitVSH(&param);
 }
 
+
 int decompress_data(u32 destSize, const u8 *src, u8 *dest)
 {
 	u32 k1;
@@ -787,7 +797,7 @@ int decompress_data(u32 destSize, const u8 *src, u8 *dest)
 	}
 
 	ret = sceKernelDeflateDecompress(dest, destSize, src, 0);
-	printk("%s: 0x%08X 0x%08X 0x%08X -> 0x%08X\n", __func__, (uint)destSize, (uint)src, (uint)dest, ret);
+	myprintk("%s: 0x%08X 0x%08X 0x%08X -> 0x%08X\n", __func__, (uint)destSize, (uint)src, (uint)dest, ret);
 
 	if(ret >= 0) {
 		if(psp_fw_version >= FW_380) {
@@ -796,7 +806,7 @@ int decompress_data(u32 destSize, const u8 *src, u8 *dest)
 			ret = 0x9300;
 		}
 
-		printk("%s: [FAKE] -> 0x%08X\n", __func__, ret);
+		myprintk("%s: [FAKE] -> 0x%08X\n", __func__, ret);
 	}
 
 	pspSdkSetK1(k1);
@@ -824,7 +834,7 @@ static int patch_decompress_data(u32 text_addr)
 	}
 
 	if (ret != 0) {
-		printk("%s: place_syscall_stub -> 0x%08X\n", __func__, ret);
+		myprintk("%s: place_syscall_stub -> 0x%08X\n", __func__, ret);
 
 		return -1;
 	}
@@ -860,20 +870,20 @@ int _sceMeAudio_67CD7972(void *buf, int size)
 	ret = (*sceMeAudio_67CD7972)(buf, size);
 	pspSdkSetK1(k1);
 
-	printk("%s: 0x%08X -> 0x%08X\n", __func__, size, ret);
+	myprintk("%s: 0x%08X -> 0x%08X\n", __func__, size, ret);
 
 	return ret;
 }
 
 static int popcorn_patch_chain(SceModule2 *mod)
 {
-	printk("%s: %s\n", __func__, mod->modname);
+	myprintk("%s: %s\n", __func__, mod->modname);
 
 	if (0 == strcmp(mod->modname, "pops")) {
 		u32 text_addr = mod->text_addr;
 		int i;
 
-		printk("%s: patching pops\n", __func__);
+		myprintk("%s: patching pops\n", __func__);
 
 		if(g_is_custom_ps1) {
 			patch_decompress_data(text_addr);
@@ -902,7 +912,14 @@ static int popcorn_patch_chain(SceModule2 *mod)
 		sync_cache();
 	}
 
-	if(conf.noanalog) {
+#if 0
+	if(!strcmp(mod->modname, "sceVshSDAuto_Module")){
+		sceIoRemove("ms0:/__popcorn.txt");
+		myprintk = printk_void;
+	}
+#endif
+
+	if( me_fw == 0 && conf.noanalog) {
 		patch_analog_imports((SceModule*)mod);
 	}
 
@@ -969,7 +986,7 @@ static void setup_psx_fw_version(u32 fw_version)
 	_SysMemUserForUser_315AD3A0 = (void*)sctrlHENFindFunction("sceSystemMemoryManager", "SysMemUserForUser", 0x315AD3A0);
 
 	if (_SysMemUserForUser_315AD3A0 == NULL) {
-		printk("_SysMemUserForUser_315AD3A0 not found\n");
+		myprintk("_SysMemUserForUser_315AD3A0 not found\n");
 		reboot_vsh_with_error(0x80000001);
 	}
 
@@ -993,13 +1010,19 @@ int module_start(SceSize args, void* argp)
 		return 1;
 	}
 
+	SetME();
+
 	psp_fw_version = *(u32*)argp;
 	setup_patch_offset_table(psp_fw_version);
 	psp_model = sceKernelGetModel();
-	memset(&conf, 0, sizeof(conf));
-	sctrlSEGetConfig(&conf);
-	printk_init("ms0:/popcorn.txt");
-	printk("Popcorn: init_file = %s psp_fw_version = 0x%08X psp_model = %d\n", sceKernelInitFileName(), (uint)psp_fw_version, (int)psp_model);
+	if( me_fw == 0 ) {
+		memset(&conf, 0, sizeof(conf));
+		sctrlSEGetConfig(&conf);
+	}
+	//sceIoRemove("ms0:/__popcorn.txt");
+	//printk_init("ms0:/__popcorn.txt");
+	//myprintk = printk_void;
+	myprintk("Popcorn: init_file = %s psp_fw_version = 0x%08X psp_model = %d\n", sceKernelInitFileName(), (uint)psp_fw_version, (int)psp_model);
 
 	get_keypath(keypath, sizeof(keypath));
 	ret = sceIoGetstat(keypath, &stat);
@@ -1012,7 +1035,7 @@ int module_start(SceSize args, void* argp)
 
 		if(ret == 0) {
 			g_keys_bin_found = 1;
-			printk("keys.bin found\n");
+			myprintk("keys.bin found\n");
 		}
 	}
 
@@ -1026,7 +1049,8 @@ int module_start(SceSize args, void* argp)
 	g_previous = sctrlHENSetStartModuleHandler(&popcorn_patch_chain);
 	patch_scePops_Manager();
 	sync_cache();
-	
+
+	//sceKernelDelayThread(2000000);
 	return 0;
 }
 

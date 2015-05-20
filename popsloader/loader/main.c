@@ -40,6 +40,8 @@ void *module_buffer = NULL;
 u32 module_size = 0;
 STMOD_HANDLER g_previous = NULL;
 
+#include "../common/me_fw.h"
+
 int is_ef0(void)
 {
 	return psp_model == PSP_GO && sctrlKernelBootFrom() == 0x50 ? 1 : 0;
@@ -151,8 +153,9 @@ int launch_pops(char *path)
 	param.argp = (char *) path;
 	param.key = mode;
 
-	ret = sctrlKernelLoadExecVSHWithApitype(apitype, path, &param);
-
+	ret = me_fw?
+			sctrlKernelLoadExecVSHWithApitype_patch(apitype, path, &param):
+			sctrlKernelLoadExecVSHWithApitype(apitype, path, &param);
 	return ret;
 }
 
@@ -181,16 +184,9 @@ static void loadexec_pops(void)
 
 int launch_thread(SceSize args, void *argp)
 {
-	int status;
-
 	printk("%s: started\n", __func__);
-	load_config();
-
-	if(g_conf.pops_fw_version != 0) {
-		loadexec_pops();
-	}
-
-	sceKernelStopUnloadSelfModule(0, NULL, &status, NULL);
+	//load_config();
+	loadexec_pops();
 
 	return 0;
 }
@@ -198,8 +194,7 @@ int launch_thread(SceSize args, void *argp)
 int ui_thread(SceSize args, void *argp)
 {
 	printk("%s: started\n", __func__);
-
-	load_config();
+	//load_config();
 	get_pops_fw_version(&g_conf.pops_fw_version);
 	save_config();
 	loadexec_pops();
@@ -234,11 +229,39 @@ int popsloader_patch_chain(SceModule2 *mod)
 {
 	printk("%s: %s\n", __func__, mod->modname);
 
+	if(me_fw)sceKernelApplyPspRelSectionPatched(mod);
+
+if(!sceKernelFindModuleByName("popscore")){
 	if(0 == strcmp(mod->modname, "pops")) {
+		load_config();
 		MAKE_DUMMY_FUNCTION_RETURN_1(mod->entry_addr);
 		sync_cache();
 		create_thread(1);
 	}
+}
+
+	if(g_previous)
+		return g_previous(mod);
+	
+	return 0;
+}
+
+int popsloader_patch_chain0(SceModule2 *mod)
+{
+	printk("%s: %s\n", __func__, mod->modname);
+
+	if(me_fw)sceKernelApplyPspRelSectionPatched(mod);
+
+if(!sceKernelFindModuleByName("popscore")){
+	if(0 == strcmp(mod->modname, "pops")) {
+		load_config();
+		if(g_conf.pops_fw_version){
+			MAKE_DUMMY_FUNCTION_RETURN_1(mod->entry_addr);
+			sync_cache();
+			create_thread(0);
+		}
+	}
+}
 
 	if(g_previous)
 		return g_previous(mod);
@@ -261,15 +284,30 @@ int module_start(SceSize args, void* argp)
 	
 	psp_fw_version = sceKernelDevkitVersion();
 	psp_model = sceKernelGetModel();
-	printk_init();
+#ifdef DEBUG
+	sceIoRemove("ms0:/__popsloader.txt");
+#endif
+	printk_init("ms0:/__popsloader.txt");
 	mount_memory_stick();
+
+	SetME();
+	//load_config(); //in this point, sceKernelGetGameInfo() doesn't grub EBOOT name.
 
 	sceCtrlReadBufferPositive(&ctrl_data, 1);
 
 	if(ctrl_data.Buttons & PSP_CTRL_RTRIGGER) {
 		g_previous = sctrlHENSetStartModuleHandler(&popsloader_patch_chain);
-	} else {
-		create_thread(0);
+	} else { //if(g_conf.pops_fw_version != 0) {
+		//create_thread(0);
+		g_previous = sctrlHENSetStartModuleHandler(&popsloader_patch_chain0);
+	}
+
+	if(0){//me_fw){
+		SceModule2 *mod = (SceModule2*)sceKernelFindModuleByName("sceLoaderCore");
+		u32 text_addr=mod->text_addr;
+
+		_sw(0x1000FFCB, text_addr + 0x00006EE4 );
+		ClearCaches();
 	}
 	
 	return 0;

@@ -1,0 +1,5 @@
+popsloader_updater.md5sum: updater's md5sum
+popsloader.md5sum: pops modules' md5sum (and layout)
+
+You can execute "md5sum --check popsloader.md5sum" in ms0:/seplugins/popsloader/modules/ to check if your pops are OK.
+If your md5 is wrong, bug report won't be accepted. Please be careful.

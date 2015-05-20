@@ -37,6 +37,8 @@ u32 psp_fw_version;
 u32 psp_model;
 u32 pops_fw_version;
 
+#include "../common/me_fw.h"
+
 static STMOD_HANDLER g_previous = NULL;
 
 static int _sceIoOpen(const char *file, int flag, int mode)
@@ -81,18 +83,12 @@ static int popsloader_patch_chain(SceModule2 *mod)
 
 	if(pops_fw_version <= FW_401) {
 		if(0 == strcmp(mod->modname, "sceImpose_Driver")) {
-			u32 sceKernelGetModel_nid = -1;
+			u32 sceKernelGetModel_nid;
 
-			if(psp_fw_version == FW_660) {
-				sceKernelGetModel_nid = 0x07C586A1;
-			} else if (psp_fw_version >= FW_635 && psp_fw_version <= FW_639) {
-				sceKernelGetModel_nid = 0x458A70B5;
-			} else if (psp_fw_version == FW_620) {
-				sceKernelGetModel_nid = 0x864EBFD7;
-			} else {
-				asm("break");
-			}
-
+			sceKernelGetModel_nid =
+				psp_fw_version == FW_620 ? 0x864EBFD7/*0x864EBDF7*/ :
+				(psp_fw_version == FW_660 || psp_fw_version == FW_661) ? 0x07C586A1 :
+				0x458A70B5;
 			hook_import_bynid((SceModule*)mod, "IoFileMgrForKernel", 0x109F50BC, _sceIoOpen, 0);
 			hook_import_bynid((SceModule*)mod, "SysMemForKernel", sceKernelGetModel_nid, _sceKernelGetModel, 0);
 		}
@@ -135,17 +131,23 @@ int module_start(SceSize args, void* argp)
 
 	psp_fw_version = sceKernelDevkitVersion();
 	psp_model = sceKernelGetModel();
-	printk_init("ms0:/core.txt");
+#ifdef DEBUG
+	sceIoRemove("ms0:/__popscore.txt");
+#endif
+	printk_init("ms0:/__popscore.txt");
 	mount_memory_stick();
 
 	if(-1 == load_config() || g_conf.pops_fw_version == 0) {
 		return 1;
 	}
+	SetME();
 
 	pops_fw_version = g_conf.pops_fw_version;
 	setup_nid_resolver();
 	setup_nid_resolver_impose();
-	sctrlSetCustomStartModule(&custom_start_module);
+	me_fw?
+		sctrlSetCustomStartModule_hook(&custom_start_module):
+		sctrlSetCustomStartModule(&custom_start_module);
 	g_previous = sctrlHENSetStartModuleHandler(&popsloader_patch_chain);
 
 	(void)thid;
